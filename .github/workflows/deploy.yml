@@ -33,9 +33,18 @@ jobs:
       - name: Prerender routes to static HTML
         run: bun ./scripts/prerender.mjs
 
+      - name: Debug — list artifact contents
+        run: |
+          echo "== dist/client =="
+          ls -la dist/client
+          echo "== dist/client/assets =="
+          ls -la dist/client/assets || echo "NO ASSETS DIR"
+          echo "== total size =="
+          du -sh dist/client
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/client
+          path: ./dist/client
 
   deploy:
     needs: build
