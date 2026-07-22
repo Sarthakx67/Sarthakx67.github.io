@@ -3,7 +3,7 @@
 // captures HTML for each route, then writes files into dist/client/ so
 // GitHub Pages can serve them as a static site.
 import { pathToFileURL } from "node:url";
-import { mkdir, writeFile, copyFile, access } from "node:fs/promises";
+import { access, mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const ROUTES = [
@@ -12,11 +12,45 @@ const ROUTES = [
   "/projects/roboshop-infra",
 ];
 
-const serverEntry = path.resolve("dist/server/index.mjs");
-await access(serverEntry).catch(() => {
-  console.error(`Cannot find ${serverEntry}. Did you run \`bun run build\` first?`);
+const SERVER_ENTRY_CANDIDATES = [
+  "dist/server/index.mjs",
+  "dist/server/server.js",
+  ".output/server/index.mjs",
+  ".output/server/index.js",
+];
+
+async function fileExists(file) {
+  return access(file).then(
+    () => true,
+    () => false,
+  );
+}
+
+async function discoverServerEntry() {
+  for (const candidate of SERVER_ENTRY_CANDIDATES) {
+    const absolute = path.resolve(candidate);
+    if (await fileExists(absolute)) return absolute;
+  }
+
+  for (const root of ["dist/server", ".output/server"]) {
+    if (!(await fileExists(root))) continue;
+    const files = await readdir(root, { recursive: true });
+    const entry = files.find((file) => /(^|\/)(index\.mjs|server\.js)$/.test(file));
+    if (entry) return path.resolve(root, entry);
+  }
+
+  console.error("Cannot find the built server entry. Build output:");
+  for (const root of ["dist", ".output"]) {
+    if (!(await fileExists(root))) continue;
+    const files = await readdir(root, { recursive: true });
+    console.error(files.slice(0, 100).map((file) => `  ${root}/${file}`).join("\n"));
+  }
+  console.error("Run `bun run build` before prerendering.");
   process.exit(1);
-});
+}
+
+const serverEntry = await discoverServerEntry();
+console.log(`Using server entry: ${path.relative(process.cwd(), serverEntry)}`);
 
 const mod = await import(pathToFileURL(serverEntry).href);
 const handler = mod.default ?? mod.handler ?? mod;
