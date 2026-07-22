@@ -3,7 +3,7 @@
 // captures HTML for each route, then writes files into dist/client/ so
 // GitHub Pages can serve them as a static site.
 import { pathToFileURL } from "node:url";
-import { access, mkdir, readdir, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const ROUTES = [
@@ -60,6 +60,17 @@ if (typeof handler?.fetch !== "function") {
 }
 
 const outDir = path.resolve("dist/client");
+await mkdir(outDir, { recursive: true });
+
+// If Nitro emitted client assets to .output/public (edge preset) instead of
+// dist/client (node preset), copy them over so upload-pages-artifact finds them.
+for (const src of [".output/public", ".output/client"]) {
+  if (await fileExists(src)) {
+    console.log(`Copying client assets from ${src} → dist/client`);
+    await cp(src, outDir, { recursive: true });
+  }
+}
+
 let firstHtml = null;
 
 for (const route of ROUTES) {
